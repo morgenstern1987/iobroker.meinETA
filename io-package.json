@@ -1,19 +1,26 @@
 {
   "common": {
-    "name": "eta-touch",
+    "name": "meineta",
     "version": "0.0.1",
     "titleLang": {
-      "en": "ETA Touch Heating"
+      "en": "ETA Touch Heating",
+      "de": "ETA Touch Heizung"
     },
     "desc": {
-      "en": "Adapter for ETA Touch heating systems"
+      "en": "Adapter for ETA Touch heating systems",
+      "de": "Adapter für ETA Touch Heizungen"
     },
+    "authors": [
+      "Henrik Morgenstern"
+    ],
+    "license": "MIT",
     "platform": "Javascript/Node.js",
     "mode": "daemon",
     "type": "heating",
     "compact": true,
     "connectionType": "local",
     "dataSource": "poll",
+    "loglevel": "info",
     "adminUI": {
       "config": "json"
     }
