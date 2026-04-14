@@ -32,13 +32,9 @@ class MeinEta extends utils.Adapter {
 
             this.client = new EtaClient(this.config.host, this.config.port);
 
-            await this.createVarSet();
+            await this.ensureVarSet();
 
             await this.discoverVariables();
-
-            this.subscribeStates("*");
-
-            this.log.info("Discovery abgeschlossen");
 
             setTimeout(() => {
 
@@ -55,13 +51,13 @@ class MeinEta extends utils.Adapter {
 
         } catch (error) {
 
-            this.log.error(`Startfehler: ${error}`);
+            this.log.error(error);
 
         }
 
     }
 
-    async createVarSet() {
+    async ensureVarSet() {
 
         try {
 
@@ -77,43 +73,33 @@ class MeinEta extends utils.Adapter {
 
     async discoverVariables() {
 
-        try {
+        const data = await this.client.get("/user/menu");
 
-            this.log.info("Lese ETA Menüstruktur");
+        const menu = data.eta.menu[0];
 
-            const data = await this.client.get("/user/menu");
+        const variables = extractVariables(menu);
 
-            const menu = data.eta.menu[0];
+        this.log.info(`ETA Variablen gefunden: ${variables.length}`);
 
-            const variables = extractVariables(menu);
+        for (const v of variables) {
 
-            this.log.info(`Gefundene Variablen: ${variables.length}`);
+            const id = buildObjectPath(v.path);
 
-            for (const v of variables) {
+            this.uriMap[v.uri] = id;
 
-                const id = buildObjectPath(v.path);
+            await this.createObjectTree(id, v.name, v.uri);
 
-                this.uriMap[v.uri] = id;
+            const parts = v.uri.replace(/^\//, "").split("/");
 
-                await this.createObjectTree(id, v.name, v.uri);
+            try {
 
-                const uri = v.uri.replace(/^\//, "");
+                await this.client.put(`/user/vars/${this.config.varset}/${parts.join("/")}`);
 
-                try {
+            } catch (error) {
 
-                    await this.client.put(`/user/vars/${this.config.varset}/${uri}`);
-
-                } catch {
-
-                    this.log.debug(`Var nicht hinzugefügt: ${uri}`);
-
-                }
+                this.log.debug(`Var nicht hinzugefügt: ${v.uri}`);
 
             }
-
-        } catch (error) {
-
-            this.log.error(`Discovery Fehler: ${error}`);
 
         }
 
@@ -122,7 +108,6 @@ class MeinEta extends utils.Adapter {
     async createObjectTree(id, name, uri) {
 
         const parts = id.split(".");
-
         let path = "";
 
         for (let i = 0; i < parts.length; i++) {
@@ -144,7 +129,7 @@ class MeinEta extends utils.Adapter {
                         type: "number",
                         role: "value",
                         read: true,
-                        write: true
+                        write: false
                     },
                     native: {
                         uri
@@ -175,33 +160,23 @@ class MeinEta extends utils.Adapter {
 
             const vars = data?.eta?.vars?.[0]?.variable;
 
-            if (!vars) return;
+            if (!vars) {
+                this.log.warn("Keine Variablen vom ETA Server");
+                return;
+            }
 
             for (const v of vars) {
 
                 const uri = v.$.uri;
 
-                const id = this.uriMap[uri];
+                const id = this.uriMap[`/${uri}`];
 
                 if (!id) continue;
 
                 const raw = parseFloat(v._);
-
                 const scale = parseFloat(v.$.scaleFactor || 1);
 
                 const value = raw / scale;
-
-                const unit = v.$.unit || "";
-
-                const obj = await this.getObjectAsync(id);
-
-                if (obj && unit && obj.common.unit !== unit) {
-
-                    obj.common.unit = unit;
-
-                    await this.setObjectAsync(id, obj);
-
-                }
 
                 await this.setStateAsync(id, value, true);
 
@@ -224,7 +199,7 @@ class MeinEta extends utils.Adapter {
             await this.setObjectNotExistsAsync("errors.raw", {
                 type: "state",
                 common: {
-                    name: "Active Errors",
+                    name: "ETA Errors",
                     type: "string",
                     role: "json",
                     read: true,
@@ -235,33 +210,7 @@ class MeinEta extends utils.Adapter {
 
             await this.setStateAsync("errors.raw", JSON.stringify(data), true);
 
-        } catch (error) {
-
-            this.log.error(`Error Polling Fehler: ${error}`);
-
-        }
-
-    }
-
-    async onStateChange(id, state) {
-
-        if (!state || state.ack) return;
-
-        const obj = await this.getObjectAsync(id);
-
-        if (!obj?.native?.uri) return;
-
-        const raw = Math.round(state.val);
-
-        try {
-
-            await this.client.post(`/user/var${obj.native.uri}`, `value=${raw}`);
-
-        } catch (error) {
-
-            this.log.error(`Write Fehler: ${error}`);
-
-        }
+        } catch {}
 
     }
 
