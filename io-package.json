@@ -1,14 +1,14 @@
 {
   "common": {
     "name": "meineta",
-    "version": "0.0.1",
+    "version": "0.1.0",
     "titleLang": {
-      "en": "ETA Touch Heating",
-      "de": "ETA Touch Heizung"
+      "en": "ETA Heating Adapter",
+      "de": "ETA Heizungs Adapter"
     },
     "desc": {
-      "en": "Adapter for ETA Touch heating systems",
-      "de": "Adapter für ETA Touch Heizungen"
+      "en": "Adapter for ETA heating systems",
+      "de": "Adapter für ETA Heizungen"
     },
     "authors": [
       "Henrik Morgenstern"
