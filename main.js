@@ -33,6 +33,7 @@ class MeinEta extends utils.Adapter {
             this.client = new EtaClient(this.config.host, this.config.port);
 
             await this.createVarSet();
+
             await this.discoverVariables();
 
             this.subscribeStates("*");
@@ -66,7 +67,7 @@ class MeinEta extends utils.Adapter {
 
             await this.client.put(`/user/vars/${this.config.varset}`);
 
-        } catch (error) {
+        } catch {
 
             this.log.debug("VarSet existiert bereits");
 
@@ -94,19 +95,7 @@ class MeinEta extends utils.Adapter {
 
                 this.uriMap[v.uri] = id;
 
-                await this.setObjectNotExistsAsync(id, {
-                    type: "state",
-                    common: {
-                        name: v.name,
-                        type: "number",
-                        role: "value",
-                        read: true,
-                        write: true
-                    },
-                    native: {
-                        uri: v.uri
-                    }
-                });
+                await this.createObjectTree(id, v.name, v.uri);
 
                 const uri = v.uri.replace(/^\//, "");
 
@@ -114,9 +103,9 @@ class MeinEta extends utils.Adapter {
 
                     await this.client.put(`/user/vars/${this.config.varset}/${uri}`);
 
-                } catch (error) {
+                } catch {
 
-                    this.log.debug(`Variable konnte nicht hinzugefügt werden: ${uri}`);
+                    this.log.debug(`Var nicht hinzugefügt: ${uri}`);
 
                 }
 
@@ -125,6 +114,54 @@ class MeinEta extends utils.Adapter {
         } catch (error) {
 
             this.log.error(`Discovery Fehler: ${error}`);
+
+        }
+
+    }
+
+    async createObjectTree(id, name, uri) {
+
+        const parts = id.split(".");
+
+        let path = "";
+
+        for (let i = 0; i < parts.length; i++) {
+
+            path = path ? `${path}.${parts[i]}` : parts[i];
+
+            const isLast = i === parts.length - 1;
+
+            const exists = await this.getObjectAsync(path);
+
+            if (exists) continue;
+
+            if (isLast) {
+
+                await this.setObjectAsync(path, {
+                    type: "state",
+                    common: {
+                        name,
+                        type: "number",
+                        role: "value",
+                        read: true,
+                        write: true
+                    },
+                    native: {
+                        uri
+                    }
+                });
+
+            } else {
+
+                await this.setObjectAsync(path, {
+                    type: "channel",
+                    common: {
+                        name: parts[i]
+                    },
+                    native: {}
+                });
+
+            }
 
         }
 
