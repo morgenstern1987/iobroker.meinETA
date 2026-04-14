@@ -3,6 +3,7 @@
 const utils = require("@iobroker/adapter-core");
 const EtaClient = require("./lib/etaClient");
 const { extractVariables } = require("./lib/menuParser");
+const { buildObjectPath } = require("./lib/nameMapper");
 
 class MeinEta extends utils.Adapter {
 
@@ -12,6 +13,8 @@ class MeinEta extends utils.Adapter {
             ...options,
             name: "meineta"
         });
+
+        this.uriMap = {};
 
         this.on("ready", this.onReady.bind(this));
         this.on("stateChange", this.onStateChange.bind(this));
@@ -27,49 +30,30 @@ class MeinEta extends utils.Adapter {
 
         this.client = new EtaClient(this.config.host, this.config.port);
 
-        try {
+        await this.createVarSet();
 
-            await this.createVarSet();
+        await this.discoverVariables();
 
-            await this.discoverVariables();
+        this.subscribeStates("*");
 
-            this.subscribeStates("values.*");
+        setTimeout(() => {
 
-            this.log.info("Discovery abgeschlossen");
+            this.pollVars();
 
-            setTimeout(() => {
-
+            this.pollTimer = setInterval(() => {
                 this.pollVars();
                 this.pollErrors();
+            }, this.config.pollInterval);
 
-                this.pollTimer = setInterval(() => {
-
-                    this.pollVars();
-                    this.pollErrors();
-
-                }, this.config.pollInterval);
-
-            }, 5000);
-
-        } catch (error) {
-
-            this.log.error(`Startfehler: ${error}`);
-
-        }
+        }, 5000);
 
     }
 
     async createVarSet() {
 
         try {
-
             await this.client.put(`/user/vars/${this.config.varset}`);
-
-        } catch {
-
-            this.log.debug("VarSet existiert bereits");
-
-        }
+        } catch {}
 
     }
 
@@ -87,7 +71,9 @@ class MeinEta extends utils.Adapter {
 
         for (const v of variables) {
 
-            const id = `values.${v.uri.replace(/\//g, "_")}`;
+            const id = buildObjectPath(v.path);
+
+            this.uriMap[v.uri] = id;
 
             await this.setObjectNotExistsAsync(id, {
                 type: "state",
@@ -106,9 +92,7 @@ class MeinEta extends utils.Adapter {
             const uri = v.uri.replace("/", "");
 
             try {
-
                 await this.client.put(`/user/vars/${this.config.varset}/${uri}`);
-
             } catch {}
 
         }
@@ -129,7 +113,9 @@ class MeinEta extends utils.Adapter {
 
                 const uri = v.$.uri;
 
-                const id = `values.${uri.replace(/\//g, "_")}`;
+                const id = this.uriMap[uri];
+
+                if (!id) continue;
 
                 const raw = parseFloat(v._);
 
@@ -137,21 +123,15 @@ class MeinEta extends utils.Adapter {
 
                 const value = raw / scale;
 
+                const unit = v.$.unit || "";
+
                 const obj = await this.getObjectAsync(id);
 
-                if (!obj) {
+                if (obj && unit && obj.common.unit !== unit) {
 
-                    await this.setObjectAsync(id, {
-                        type: "state",
-                        common: {
-                            name: uri,
-                            type: "number",
-                            role: "value",
-                            read: true,
-                            write: false
-                        },
-                        native: {}
-                    });
+                    obj.common.unit = unit;
+
+                    await this.setObjectAsync(id, obj);
 
                 }
 
