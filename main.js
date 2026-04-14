@@ -1,15 +1,15 @@
 "use strict";
 
 const utils = require("@iobroker/adapter-core");
-const axios = require("axios");
-const xml2js = require("xml2js");
+const EtaClient = require("./lib/etaClient");
+const { flattenMenu } = require("./lib/parser");
 
 class EtaTouch extends utils.Adapter {
 
     constructor(options) {
         super({
             ...options,
-            name: "eta-touch",
+            name: "eta-touch"
         });
 
         this.on("ready", this.onReady.bind(this));
@@ -18,113 +18,103 @@ class EtaTouch extends utils.Adapter {
 
     async onReady() {
 
-        this.baseUrl = `http://${this.config.host}:${this.config.port || 8080}`;
+        this.client = new EtaClient(this.config.host, this.config.port);
 
-        this.log.info(`Connecting to ETA Touch at ${this.baseUrl}`);
-
-        await this.getApiVersion();
-        await this.getErrors();
+        await this.createVarSet();
+        await this.discoverMenu();
 
         this.pollTimer = setInterval(() => {
-            this.getErrors();
-        }, this.config.pollInterval || 60000);
+            this.pollVars();
+            this.pollErrors();
+        }, this.config.pollInterval);
     }
 
-    async request(path) {
-        const url = `${this.baseUrl}${path}`;
-        const res = await axios.get(url);
-        return xml2js.parseStringPromise(res.data);
-    }
-
-    async getApiVersion() {
+    async createVarSet() {
 
         try {
-
-            const data = await this.request("/user/api");
-
-            const version = data.eta.api[0].$.version;
-
-            await this.setObjectNotExistsAsync("info.apiVersion", {
-                type: "state",
-                common: {
-                    name: "API Version",
-                    type: "string",
-                    role: "info",
-                    read: true,
-                    write: false
-                },
-                native: {}
-            });
-
-            await this.setStateAsync("info.apiVersion", version, true);
-
-        } catch (err) {
-            this.log.error(err);
+            await this.client.put(`/user/vars/${this.config.varset}`);
+        } catch {
+            this.log.debug("Varset exists");
         }
 
     }
 
-    async getErrors() {
+    async discoverMenu() {
 
-        try {
+        const data = await this.client.get("/user/menu");
 
-            const data = await this.request("/user/errors");
+        const menu = data.eta.menu[0];
 
-            const errors = JSON.stringify(data);
+        const vars = flattenMenu(menu);
 
-            await this.setObjectNotExistsAsync("errors.active", {
+        for (const v of vars) {
+
+            const addr = v.uri.replace(/\//g, "_");
+
+            await this.setObjectNotExistsAsync(`values.${addr}`, {
                 type: "state",
                 common: {
-                    name: "Active Errors",
-                    type: "string",
-                    role: "json",
+                    name: v.name,
+                    type: "number",
+                    role: "value",
                     read: true,
-                    write: false
+                    write: true
                 },
-                native: {}
+                native: {
+                    uri: v.uri
+                }
             });
 
-            await this.setStateAsync("errors.active", errors, true);
+            const uri = v.uri.replace("/","");
 
-        } catch (err) {
-            this.log.error(err);
+            await this.client.put(`/user/vars/${this.config.varset}/${uri}`);
+
         }
 
     }
 
-    async readVariable(addr) {
+    async pollVars() {
 
-        const data = await this.request(`/user/var/${addr}`);
+        const data = await this.client.get(`/user/vars/${this.config.varset}`);
 
-        const value = data.eta.value[0]._;
+        if (!data.eta.vars) return;
 
-        const id = `values.${addr.replace(/\//g, "_")}`;
+        const vars = data.eta.vars[0].variable;
 
-        await this.setObjectNotExistsAsync(id, {
+        for (const v of vars) {
+
+            const uri = v.$.uri;
+
+            const id = `values.${uri.replace(/\//g,"_")}`;
+
+            const raw = parseFloat(v._);
+
+            const scale = parseFloat(v.$.scaleFactor || 1);
+
+            const val = raw / scale;
+
+            await this.setStateAsync(id, val, true);
+
+        }
+
+    }
+
+    async pollErrors() {
+
+        const data = await this.client.get("/user/errors");
+
+        await this.setObjectNotExistsAsync("errors.raw", {
             type: "state",
             common: {
-                name: addr,
-                type: "number",
-                role: "value",
+                type: "string",
+                role: "json",
                 read: true,
-                write: true
+                write: false
             },
             native: {}
         });
 
-        await this.setStateAsync(id, parseFloat(value), true);
-
-    }
-
-    async setVariable(addr, value) {
-
-        const url = `${this.baseUrl}/user/var/${addr}`;
-
-        await axios.post(url, `value=${value}`, {
-            headers: {
-                "Content-Type": "application/x-www-form-urlencoded"
-            }
-        });
+        await this.setStateAsync("errors.raw", JSON.stringify(data), true);
 
     }
 
@@ -132,9 +122,13 @@ class EtaTouch extends utils.Adapter {
 
         if (!state || state.ack) return;
 
-        const addr = id.split(".values.")[1].replace(/_/g, "/");
+        const obj = await this.getObjectAsync(id);
 
-        await this.setVariable(addr, state.val);
+        const uri = obj.native.uri;
+
+        const raw = Math.round(state.val);
+
+        await this.client.post(`/user/var${uri}`, `value=${raw}`);
 
     }
 
