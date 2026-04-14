@@ -1,27 +1,19 @@
 {
-  "name": "iobroker.meineta",
-  "version": "0.1.0",
-  "description": "ETA heating adapter for ioBroker",
-  "author": "Henrik Morgenstern",
-  "license": "MIT",
-  "main": "main.js",
-  "keywords": [
-    "iobroker",
-    "eta",
-    "heating",
-    "pellet",
-    "boiler"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/morgenstern1987/iobroker.meineta"
-  },
-  "dependencies": {
-    "@iobroker/adapter-core": "^3.2.0",
-    "axios": "^1.6.0",
-    "xml2js": "^0.6.2"
-  },
-  "engines": {
-    "node": ">=18"
+  "type": "panel",
+  "items": {
+    "host": {
+      "type": "text",
+      "label": "ETA Heizungs IP"
+    },
+    "port": {
+      "type": "number",
+      "label": "Port",
+      "default": 8080
+    },
+    "pollInterval": {
+      "type": "number",
+      "label": "Polling (ms)",
+      "default": 60000
+    }
   }
 }
