@@ -1,7 +1,7 @@
 {
   "common": {
     "name": "meineta",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "titleLang": {
       "en": "ETA Heating Adapter",
       "de": "ETA Heizungs Adapter"
@@ -20,7 +20,6 @@
     "compact": true,
     "connectionType": "local",
     "dataSource": "poll",
-    "loglevel": "info",
     "adminUI": {
       "config": "json"
     }
