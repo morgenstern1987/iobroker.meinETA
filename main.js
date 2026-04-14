@@ -23,77 +23,108 @@ class MeinEta extends utils.Adapter {
 
     async onReady() {
 
-        if (!this.config.host) {
-            this.log.error("Bitte ETA IP konfigurieren");
-            return;
-        }
+        try {
 
-        this.client = new EtaClient(this.config.host, this.config.port);
+            if (!this.config.host) {
+                this.log.error("Keine ETA IP konfiguriert");
+                return;
+            }
 
-        await this.createVarSet();
+            this.client = new EtaClient(this.config.host, this.config.port);
 
-        await this.discoverVariables();
+            await this.createVarSet();
+            await this.discoverVariables();
 
-        this.subscribeStates("*");
+            this.subscribeStates("*");
 
-        setTimeout(() => {
+            this.log.info("Discovery abgeschlossen");
 
-            this.pollVars();
+            setTimeout(() => {
 
-            this.pollTimer = setInterval(() => {
                 this.pollVars();
-                this.pollErrors();
-            }, this.config.pollInterval);
 
-        }, 5000);
+                this.pollTimer = setInterval(() => {
+
+                    this.pollVars();
+                    this.pollErrors();
+
+                }, this.config.pollInterval);
+
+            }, 5000);
+
+        } catch (error) {
+
+            this.log.error(`Startfehler: ${error}`);
+
+        }
 
     }
 
     async createVarSet() {
 
         try {
+
             await this.client.put(`/user/vars/${this.config.varset}`);
-        } catch {}
+
+        } catch (error) {
+
+            this.log.debug("VarSet existiert bereits");
+
+        }
 
     }
 
     async discoverVariables() {
 
-        this.log.info("Lese ETA Menüstruktur");
+        try {
 
-        const data = await this.client.get("/user/menu");
+            this.log.info("Lese ETA Menüstruktur");
 
-        const menu = data.eta.menu[0];
+            const data = await this.client.get("/user/menu");
 
-        const variables = extractVariables(menu);
+            const menu = data.eta.menu[0];
 
-        this.log.info(`Gefundene Variablen: ${variables.length}`);
+            const variables = extractVariables(menu);
 
-        for (const v of variables) {
+            this.log.info(`Gefundene Variablen: ${variables.length}`);
 
-            const id = buildObjectPath(v.path);
+            for (const v of variables) {
 
-            this.uriMap[v.uri] = id;
+                const id = buildObjectPath(v.path);
 
-            await this.setObjectNotExistsAsync(id, {
-                type: "state",
-                common: {
-                    name: v.name,
-                    type: "number",
-                    role: "value",
-                    read: true,
-                    write: true
-                },
-                native: {
-                    uri: v.uri
+                this.uriMap[v.uri] = id;
+
+                await this.setObjectNotExistsAsync(id, {
+                    type: "state",
+                    common: {
+                        name: v.name,
+                        type: "number",
+                        role: "value",
+                        read: true,
+                        write: true
+                    },
+                    native: {
+                        uri: v.uri
+                    }
+                });
+
+                const uri = v.uri.replace(/^\//, "");
+
+                try {
+
+                    await this.client.put(`/user/vars/${this.config.varset}/${uri}`);
+
+                } catch (error) {
+
+                    this.log.debug(`Variable konnte nicht hinzugefügt werden: ${uri}`);
+
                 }
-            });
 
-            const uri = v.uri.replace("/", "");
+            }
 
-            try {
-                await this.client.put(`/user/vars/${this.config.varset}/${uri}`);
-            } catch {}
+        } catch (error) {
+
+            this.log.error(`Discovery Fehler: ${error}`);
 
         }
 
