@@ -4,11 +4,11 @@
     "version": "1.0.0",
     "news": {
       "1.0.0": {
-        "en": "Initial release: read-only polling of ETA Touch RESTful API",
-        "de": "Erstveröffentlichung: Nur-Lese-Polling der ETA Touch RESTful API"
+        "en": "Initial release",
+        "de": "Erstveröffentlichung"
       }
     },
-    "title": "ETA Touch",
+    "title": "MeinETA",
     "titleLang": {
       "en": "ETA Touch Heating",
       "de": "ETA Touch Heizung"
@@ -17,27 +17,18 @@
       "en": "Read values from ETA Touch pellet heating systems via the RESTful API",
       "de": "Werte von ETA Touch Pelletheizungen über die RESTful API auslesen"
     },
-    "authors": ["ioBroker User <user@example.com>"],
+    "authors": ["morgenstern1987"],
     "keywords": ["eta", "heating", "pellet", "touch"],
     "license": "MIT",
     "platform": "Javascript/Node.js",
-    "icon": "admin/eta-touch.png",
     "enabled": true,
-    "extIcon": "",
-    "readme": "",
     "loglevel": "info",
     "mode": "daemon",
     "type": "hardware",
     "singleton": false,
-    "adminUI": {
-      "config": "json"
-    },
-    "jsonConfig": true,
-    "adminTab": false,
-    "supportCustoms": false,
     "connectionType": "local",
     "dataSource": "poll",
-    "messagebox": false
+    "messagebox": true
   },
   "native": {
     "ip": "",
