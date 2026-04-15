@@ -1,0 +1,38 @@
+{
+  "name": "iobroker.eta-touch",
+  "version": "1.0.0",
+  "description": "ETA Touch pellet heating system adapter for ioBroker",
+  "author": {
+    "name": "ioBroker User",
+    "email": "user@example.com"
+  },
+  "homepage": "",
+  "license": "MIT",
+  "keywords": [
+    "ioBroker",
+    "eta",
+    "heating",
+    "pellet",
+    "touch"
+  ],
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "dependencies": {
+    "@iobroker/adapter-core": "^3.0.0"
+  },
+  "devDependencies": {
+    "@iobroker/testing": "^4.0.0"
+  },
+  "main": "main.js",
+  "scripts": {
+    "test": "mocha --timeout 10000 test/**/*.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "bugs": {
+    "url": ""
+  }
+}
